@@ -77,13 +77,35 @@ jobs:
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: ctest --build-config ${{ matrix.build_type }}
-    
+
+    - name: Locate binaries
+      id: locate
+      shell: bash
+      run: |
+        BIN_DIR="${{ steps.strings.outputs.build-output-dir }}"
+
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          SEARCH_DIR="$BIN_DIR/${{ matrix.build_type }}"
+          FILES=$(find "$SEARCH_DIR" -maxdepth 2 -type f -name '*.exe' 2>/dev/null)
+        else
+          FILES=$(find "$BIN_DIR" -maxdepth 2 -type f -perm -111 2>/dev/null | grep -v '/CMakeFiles/')
+        fi
+
+        echo "=== located files ==="
+        echo "$FILES"
+        echo "=== end ==="
+
+        {
+          echo "paths<<EOF"
+          echo "$FILES"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v6
       with:
         name: auto-entry-${{ matrix.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}
-        path: |
-          ${{ runner.os == 'Windows' && format('{0}/{1}/*.exe', steps.strings.outputs.build-output-dir, matrix.build_type) || format('{0}/auto-entry', steps.strings.outputs.build-output-dir) }}
+        path: ${{ steps.locate.outputs.paths }}
         if-no-files-found: error
         retention-days: 14
 
